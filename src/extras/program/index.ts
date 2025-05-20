@@ -1,17 +1,9 @@
+import { BN, Program } from "@coral-xyz/anchor";
+import { IDL, RaffleContract } from "./raffle_contract";
+import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL, Transaction, Connection } from "@solana/web3.js";
 
-import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
-import { RaffleContract } from "./raffle_contract";
-import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL, Transaction } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID, createMint, createAccount, mintTo } from "@solana/spl-token";
+const createRaffle = async ({ program, creatorPubkey, nftMint, entryFee, maxEntries, connection }: { program: Program<RaffleContract>, creatorPubkey: PublicKey, nftMint: PublicKey, entryFee: number, maxEntries: number, connection: Connection }) => {
 
-const provider = anchor.AnchorProvider.env();
-anchor.setProvider(provider);
-
-const program = anchor.workspace.RaffleContract as Program<RaffleContract>;
-
-
-const createRaffle = async ({ creatorPubkey, nftMint, entryFee, maxEntries }: { creatorPubkey: PublicKey, nftMint: PublicKey, entryFee: number, maxEntries: number }) => {
     const [raffle] = PublicKey.findProgramAddressSync(
         [Buffer.from("raffle"), creatorPubkey.toBuffer()],
         program.programId
@@ -19,29 +11,38 @@ const createRaffle = async ({ creatorPubkey, nftMint, entryFee, maxEntries }: { 
     const raffleAccount = raffle;
 
     const transaction = await program.methods
-        .initializeRaffle(nftMint, entryFee, maxEntries)
+        .initializeRaffle(nftMint, new BN(entryFee), new BN(maxEntries))
         .accountsPartial({
             raffle: raffleAccount,
             creator: creatorPubkey,
             systemProgram: SystemProgram.programId,
         })
-        .transaction();
-
-    const signature = await processTransaction(transaction);
-
+        .signers([]).rpc();
 
     return {
-        raffleAccount,
-        signature
+        transaction
     }
+
+    // transaction.feePayer = creatorPubkey;
+
+
+    // const signature = await processTransaction(transaction, connection);
+
+
+    // return {
+    //     raffleAccount,
+    //     signature
+    // }
 }
 
-const getRaffle = async ({ rafflePubkey }: { rafflePubkey: PublicKey }) => {
+const getRaffle = async ({ program, rafflePubkey }: { program: Program<RaffleContract>, rafflePubkey: PublicKey }) => {
+
     const raffle = await program.account.raffle.fetch(rafflePubkey);
     return raffle;
 }
 
-const enterRaffle = async ({ raffleAccount, creatorPubkey }: { raffleAccount: PublicKey, creatorPubkey: PublicKey }) => {
+const enterRaffle = async ({ raffleAccount, creatorPubkey, program, connection }: { raffleAccount: PublicKey, creatorPubkey: PublicKey, program: Program<RaffleContract>, connection: Connection }) => {
+
     const tx = await program.methods
         .enterRaffle()
         .accountsPartial({
@@ -52,7 +53,11 @@ const enterRaffle = async ({ raffleAccount, creatorPubkey }: { raffleAccount: Pu
         })
         .transaction();
 
-    const signature = await processTransaction(tx);
+    tx.feePayer = creatorPubkey;
+
+
+
+    const signature = await processTransaction(tx, connection);
 
     return {
         signature
@@ -60,7 +65,7 @@ const enterRaffle = async ({ raffleAccount, creatorPubkey }: { raffleAccount: Pu
 
 }
 
-const closeRaffle = async ({ raffleAccount, creatorPubkey }: { raffleAccount: PublicKey, creatorPubkey: PublicKey }) => {
+const closeRaffle = async ({ raffleAccount, creatorPubkey, program, connection }: { raffleAccount: PublicKey, creatorPubkey: PublicKey, program: Program<RaffleContract>, connection: Connection }) => {
     const tx = await program.methods
         .closeRaffle()
         .accountsPartial({
@@ -69,7 +74,9 @@ const closeRaffle = async ({ raffleAccount, creatorPubkey }: { raffleAccount: Pu
         })
         .transaction();
 
-    const signature = await processTransaction(tx);
+    tx.feePayer = creatorPubkey;
+
+    const signature = await processTransaction(tx, connection);
 
     return {
         signature
@@ -77,7 +84,7 @@ const closeRaffle = async ({ raffleAccount, creatorPubkey }: { raffleAccount: Pu
 
 }
 
-const pickWinner = async ({ raffleAccount, creatorPubkey }: { raffleAccount: PublicKey, creatorPubkey: PublicKey }) => {
+const pickWinner = async ({ raffleAccount, creatorPubkey, program, connection }: { raffleAccount: PublicKey, creatorPubkey: PublicKey, program: Program<RaffleContract>, connection: Connection }) => {
     const tx = await program.methods
         .pickWinner()
         .accountsPartial({
@@ -86,19 +93,23 @@ const pickWinner = async ({ raffleAccount, creatorPubkey }: { raffleAccount: Pub
         })
         .transaction();
 
-    const signature = await processTransaction(tx);
+    tx.feePayer = creatorPubkey;
+
+    const signature = await processTransaction(tx, connection);
 
     return {
         signature
     }
 }
 
-const processTransaction = async (tx: Transaction) => {
-    const blockhash = await provider.connection.getLatestBlockhash();
+const processTransaction = async (tx: Transaction, connection: Connection) => {
+
+    const blockhash = await connection.getLatestBlockhash();
 
     tx.recentBlockhash = blockhash.blockhash;
 
-    const signature = await provider.sendAndConfirm(tx);
+
+    const signature = await connection.sendRawTransaction(tx.serialize());
 
     return signature;
 }

@@ -1,6 +1,11 @@
 'use client';
-
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useAnchorWallet, useWallet } from "@solana/wallet-adapter-react";
+import { useEffect } from "react";
+import { setProvider } from "@coral-xyz/anchor";
+import { AnchorProvider } from "@coral-xyz/anchor";
+import { Connection } from "@solana/web3.js";
+import { useWalletMultiButton } from '@solana/wallet-adapter-base-ui';
+import { DEVNET } from "@/extras/lib/constants";
 
 const sampleRaffles = [
   {
@@ -39,8 +44,20 @@ const sampleRaffles = [
 ];
 
 export default function Home() {
+  const { wallet, connected, publicKey } = useWallet();
+  const connection = new Connection(DEVNET as string);
+  const anchorWallet = useAnchorWallet();
+  useEffect(() => {
+    if (connected) {
+      console.log("connected");
+    }
+    const anchorProvider = anchorWallet && new AnchorProvider(connection, anchorWallet, {});
+    if (anchorProvider) {
+      setProvider(anchorProvider);
+    }
+  }, [anchorWallet, connection])
 
-  const wallet = useWallet();
+
 
 
   return (
@@ -48,7 +65,10 @@ export default function Home() {
     <main className="flex-1 p-8 overflow-y-auto">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white">Active Raffles</h2>
-        <a onClick={() => { }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg cursor-pointer font-semibold shadow transition">Mint Random NFT</a>
+        <div className="flex gap-4">
+          <a href="/create-raffle" className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg cursor-pointer font-semibold shadow transition">Create Raffle</a>
+          <a onClick={() => { }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg cursor-pointer font-semibold shadow transition">Mint Random NFT</a>
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-7">
         {sampleRaffles.map((raffle, idx) => (
@@ -62,8 +82,6 @@ export default function Home() {
                   ))}
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-1">{raffle.title}</h3>
-
-
                 <p className="text-xs text-gray-400 mb-2">{raffle.category}</p>
               </div>
               <div className="flex items-center justify-between mt-4">
@@ -79,11 +97,9 @@ export default function Home() {
                     />
                   </div>
                 </div>
-
               </div>
-
               <div className="flex items-center py-2 justify-center">
-                <a href={`/mint/${""}`} className=" w-full shadow-lg text-center bg-green-500 text-white p-1 rounded-lg mb-2">Join Raffle</a>
+                <a href={`/mint/${""}`} className="w-full shadow-lg text-center bg-green-500 text-white p-1 rounded-lg mb-2">Join Raffle</a>
               </div>
             </div>
           </div>
